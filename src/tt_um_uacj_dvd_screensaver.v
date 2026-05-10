@@ -12,10 +12,7 @@
  *   - Reduced logo size and adjusted timing
  *   - Added cfg_invert, cfg_slow, cfg_flip control inputs
  *   - Added visual flash effect on wall collisions
- *
- * v2 additions (light features):
  *   - Background checkerboard pattern (16x16 tiles, XOR of pix_x[4] ^ pix_y[4])
- *   - Trail effect: two previous logo positions drawn at dimmed color
  *   - CRT scanline effect: every odd row darkened by halving each channel
  */
 
@@ -50,23 +47,22 @@ module tt_um_uacj_dvd_screensaver (
   //  ui_in[3]  cfg_slow        – 0=1px/frame  1=1px/2frames
   //  ui_in[4]  cfg_flip        – flip logo upside-down
   //  ui_in[5]  cfg_checker     – enable background checkerboard pattern
-  //  ui_in[6]  cfg_trail       – enable logo trail
-  //  ui_in[7]  cfg_scanline    – enable CRT scanline effect
+  //  ui_in[6]  cfg_scanline    – enable CRT scanline effect
+  //  ui_in[7]  unsused
   wire cfg_tile     = ui_in[0];
   wire cfg_color    = ui_in[1];
   wire cfg_invert   = ui_in[2];
   wire cfg_slow     = ui_in[3];
   wire cfg_flip     = ui_in[4];
   wire cfg_checker  = ui_in[5];
-  wire cfg_trail    = ui_in[6];
-  wire cfg_scanline = ui_in[7];
+  wire cfg_scanline = ui_in[6];
 
   // ── TinyVGA PMOD ─────────────────────────────────────────────────────────────
   assign uo_out  = {hsync, B[0], G[0], R[0], vsync, B[1], G[1], R[1]};
   assign uio_out = 8'b0;
   assign uio_oe  = 8'b0;
 
-  wire _unused_ok = &{ena, uio_in};
+  wire _unused_ok = &{ena, uio_in, ui_in[6]};
 
   // ── VGA sync ─────────────────────────────────────────────────────────────────
   hvsync_generator vga_sync_gen (
@@ -84,10 +80,6 @@ module tt_um_uacj_dvd_screensaver (
   reg       dir_x, dir_y;
   reg [9:0] prev_y;
 
-  // ── Trail positions (two frames back) ───────────────────────────────────────
-  reg [9:0] trail1_left, trail1_top;   // 1 frame behind
-  reg [9:0] trail2_left, trail2_top;   // 2 frames behind
-
   // ── Speed divider ────────────────────────────────────────────────────────────
   reg slow_tick;
 
@@ -98,12 +90,10 @@ module tt_um_uacj_dvd_screensaver (
   // ── Colors ───────────────────────────────────────────────────────────────────
   reg  [2:0] color_index;
   wire [2:0] bg_color_index      = color_index + 3'd4;
-  wire [2:0] dim_color_index     = color_index + 3'd2;  // trail: shifted 2 steps
   wire [2:0] checker_color_index = color_index + 3'd5;  // checker alt tile: shifted 5 steps
 
   wire [5:0] logo_color_rgb;
   wire [5:0] bg_color_rgb;
-  wire [5:0] dim_color_rgb;
   wire [5:0] checker_color_rgb;
 
   palette palette_logo (
@@ -114,11 +104,6 @@ module tt_um_uacj_dvd_screensaver (
   palette palette_bg (
       .color_index(cfg_color ? bg_color_index      : 3'd0),
       .rrggbb     (bg_color_rgb)
-  );
-
-  palette palette_dim (
-      .color_index(cfg_color ? dim_color_index     : 3'd0),
-      .rrggbb     (dim_color_rgb)
   );
 
   // Checker alternate tile: a different palette entry so contrast is guaranteed
@@ -153,34 +138,6 @@ module tt_um_uacj_dvd_screensaver (
       .pixel(pixel_value)
   );
 
-  // ── Trail pixel lookup – 1 frame behind ─────────────────────────────────────
-  wire [9:0] tx1 = pix_x - trail1_left;
-  wire [9:0] ty1 = pix_y - trail1_top;
-  wire in_trail1 = (tx1 < LOGO_WIDTH && ty1 < LOGO_HEIGHT);
-  wire trail1_pixel;
-
-  wire [5:0] trail1_rom_y = cfg_flip ? (LOGO_HEIGHT - 1 - ty1[5:0]) : ty1[5:0];
-
-  bitmap_rom rom_trail1 (
-      .x    (tx1[6:0]),
-      .y    (trail1_rom_y),
-      .pixel(trail1_pixel)
-  );
-
-  // ── Trail pixel lookup – 2 frames behind ────────────────────────────────────
-  wire [9:0] tx2 = pix_x - trail2_left;
-  wire [9:0] ty2 = pix_y - trail2_top;
-  wire in_trail2 = (tx2 < LOGO_WIDTH && ty2 < LOGO_HEIGHT);
-  wire trail2_pixel;
-
-  wire [5:0] trail2_rom_y = cfg_flip ? (LOGO_HEIGHT - 1 - ty2[5:0]) : ty2[5:0];
-
-  bitmap_rom rom_trail2 (
-      .x    (tx2[6:0]),
-      .y    (trail2_rom_y),
-      .pixel(trail2_pixel)
-  );
-
   // ── CRT Scanline effect ───────────────────────────────────────────────────────
   // Every odd scanline (pix_y[0] == 1) gets its brightness halved by dropping
   // the MSB of each 2-bit channel, simulating the dark gap between CRT phosphor rows.
@@ -196,10 +153,6 @@ module tt_um_uacj_dvd_screensaver (
         reg [1:0] pR, pG, pB;
         if (in_logo && pixel_value) begin
           pR = fg_rgb[5:4]; pG = fg_rgb[3:2]; pB = fg_rgb[1:0];
-        end else if (cfg_trail && in_trail1 && trail1_pixel) begin
-          pR = dim_color_rgb[5:4]; pG = dim_color_rgb[3:2]; pB = dim_color_rgb[1:0];
-        end else if (cfg_trail && in_trail2 && trail2_pixel) begin
-          pR = {1'b0, dim_color_rgb[5]}; pG = {1'b0, dim_color_rgb[3]}; pB = {1'b0, dim_color_rgb[1]};
         end else begin
           pR = bk_checker[5:4]; pG = bk_checker[3:2]; pB = bk_checker[1:0];
         end
@@ -213,7 +166,7 @@ module tt_um_uacj_dvd_screensaver (
     end
   end
 
-  // ── Bouncing + color + flash + trail update — ONLY during vertical blanking ──
+  // ── Bouncing + color + flash update — ONLY during vertical blanking ──
   always @(posedge clk) begin
     if (~rst_n) begin
       logo_left    <= 10'd200;
@@ -224,10 +177,6 @@ module tt_um_uacj_dvd_screensaver (
       flash_ctr    <= 3'd0;
       slow_tick    <= 1'b0;
       prev_y       <= 10'd0;
-      trail1_left  <= 10'd200;
-      trail1_top   <= 10'd200;
-      trail2_left  <= 10'd200;
-      trail2_top   <= 10'd200;
     end else begin
       prev_y <= pix_y;
 
@@ -242,12 +191,6 @@ module tt_um_uacj_dvd_screensaver (
 
         // Only move and bounce when appropriate according to cfg_slow
         if (!cfg_slow || slow_tick) begin
-
-          // ── Shift trail positions before moving ──────────────────────
-          trail2_left <= trail1_left;
-          trail2_top  <= trail1_top;
-          trail1_left <= logo_left;
-          trail1_top  <= logo_top;
 
           // ── Move 1 pixel ─────────────────────────────────────────────
           logo_left <= logo_left + (dir_x ? 10'd1 : -10'd1);
