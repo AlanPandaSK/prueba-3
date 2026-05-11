@@ -24,7 +24,7 @@ parameter LOGO_HEIGHT    = 40;
 parameter DISPLAY_WIDTH  = 640;
 parameter DISPLAY_HEIGHT = 480;
 
-module tt_um_uacj_dvd_screensaver (
+module tt_um_uacj_bouncing_screensaver (
     input  wire [7:0] ui_in,
     output wire [7:0] uo_out,
     input  wire [7:0] uio_in,
