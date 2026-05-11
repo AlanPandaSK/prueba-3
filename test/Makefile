@@ -6,7 +6,7 @@ SIM ?= icarus
 FST ?= -fst # Use more efficient FST format
 TOPLEVEL_LANG ?= verilog
 SRC_DIR = $(PWD)/../src
-PROJECT_SOURCES = tt_um_uacj_dvd_screensaver.v hvsync_generator.v palette.v bitmap_rom.v
+PROJECT_SOURCES = tt_um_uacj_bouncing_screensaver.v hvsync_generator.v palette.v bitmap_rom.v
 
 ifneq ($(GATES),yes)
 
